@@ -78,14 +78,14 @@ if ! [ $tmpFile ]; then
 				[ $QUIET ] || echo "skipping line $package"
 
 			elif [ -n "$( qdepends -Qq $package )" ]; then
-		        [ $QUIET ] || ( echo "" && echo "checking $package" )
-		        if [ -n "$( emerge -pqc $package )" ]; then
-		                [ $QUIET ] || echo "$package needs to stay in @world"
+		        	[ $QUIET ] || ( echo "" && echo "checking $package" )
+		        	if [ -n "$( emerge -pqc $package )" ]; then
+		                	[ $QUIET ] || echo "$package needs to stay in @world"
 
-		        elif [ -n "$( equery -q d $package )" ]; then
-		                echo "$package can be deselected safely"
-		                echo "$package" >> "${tmpFile}"
-		      	fi
+				elif [ -n "$( equery -q d $package )" ]; then
+					echo "$package can be deselected safely"
+					echo "$package" >> "${tmpFile}"
+				fi
 			fi
 		done < "${file}"
 	done
