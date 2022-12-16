@@ -43,24 +43,24 @@ HELP
 		 	exit 0
 		 	;;
 
-			-q|--quiet)
-				QUIET='q'
-				;;
-			-c|--check-only)
-				CHECK=1
-				;;
-			-*)
-				echo "Unknown option $param"
+		 -q|--quiet)
+			QUIET='q'
+			;;
+		 -c|--check-only)
+			CHECK=1
+			;;
+		 -*)
+			echo "Unknown option $param"
+			exit 255
+			;;
+		 *)
+			if [ -r "$param" ]; then
+				tmpFile=( "${tmpFile[*]}" "$param" )
+			else
+				echo "File $param isn't accesible"
 				exit 255
-				;;
-			*)
-				if [ -r "$param" ]; then
-					tmpFile=( "${tmpFile[*]}" "$param" )
-				else
-					echo "File $param isn't accesible"
-					exit 255
-				fi
-				;;
+			fi
+			;;
 		esac
 	done
 	shift
