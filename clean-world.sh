@@ -11,7 +11,7 @@ for i in ${!files[*]}; do
 done
 
 # Parameters
-unset QUIET CHECK tmpFile
+unset QUIET VERBOSE CHECK tmpFile
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	 -[^-]*)
@@ -46,6 +46,9 @@ HELP
 		 -q|--quiet)
 			QUIET='q'
 			;;
+		 -v|--verbose)
+		 	VERBOSE='v'
+		 	;;
 		 -c|--check-only)
 			CHECK=1
 			;;
@@ -73,19 +76,25 @@ if ! [ $tmpFile ]; then
 
 	for file in ${files[*]}; do
 		[ $QUIET ] || ( echo "" && echo "- Checking ${file} -" )
+		declare -A depends
 		while read package; do
 			if ! [[ "${package}" =~ ^[a-zA-Z0-9].* ]]; then
-				[ $QUIET ] || echo "skipping line $package"
+				[ $VERBOSE ] && echo "skipping line $package"
 
-			elif [ -n "$( qdepends -Qq $package )" ]; then
-		        	[ $QUIET ] || ( echo "" && echo "checking $package" )
-		        	if [ -n "$( emerge -pqc $package )" ]; then
-		                	[ $QUIET ] || echo "$package needs to stay in @world"
+			else
+				depends["${package}"]="$( qdepends -Qq $package )"
 
-				elif [ -n "$( equery -q d $package )" ]; then
-					echo "$package can be deselected safely"
-					echo "$package" >> "${tmpFile}"
+				if [ -n "${depends["${package}"]}" ]; then
+		        	[ $VERBOSE ] && echo "checking ${package}..."
+				    if [ -n "$( emerge -pqc $package )" ]; then
+				    	[ $QUIET ] || echo "$package needs to stay in @world"
+
+					elif [ -n "$( equery -q d $package )" ]; then
+						echo "$package can be deselected safely (pushed by ${depends["${package}"]})"
+						echo "$package" >> "${tmpFile}"
+					fi
 				fi
+				depends["${package}"]="${depends["${package}"]%%:*}"
 			fi
 		done < "${file}"
 	done
@@ -93,7 +102,7 @@ if ! [ $tmpFile ]; then
 	# Ask for cleaning world
 	echo
 	while true; do
-		read -p "You can find packages that can be deselected in ${tmpFile}. Do you want to remove packages from your world files now ? (y/N/e to manually edit ${tmpFile}) : " ans
+		read -p "You can find packages that can be deselected in ${tmpFile}. Do you want to remove packages from your world files now ? (y/N/e to manually edit file) : " ans
 		case $ans in
 		 [eE] )
 		 	nano "${tmpFile}"
@@ -108,26 +117,23 @@ if ! [ $tmpFile ]; then
 		 	;;
 		 esac
 	done
-	tmpFile=( "$tmpFile" )
 fi
 
 unset deselect
-[ $CHECK ] && exit 0
+[ $CHECK ] && unset depends && exit 0
 
 while read package; do
 	deselect=( "${deselect[*]}" "${package}" )
-done < "${tmpFile[*]}"
+done < "${tmpFile}"
 
 # First depclean current installation
+echo ""
 [ $QUIET ] || echo "First, we will clean your current installation"
 sudo emerge -ac${QUIET} || exit 1
 
-# Backup world
-for file in ${files[*]}; do
-	sudo cp "${file}" "${file}.bak"
-done
-# Clean world
+# Clean world & backup
 for package in ${deselect[*]}; do
+	sudo sed -i".bak" "/^${package//\//\\\/}$/i ## pushed by ${depends["${package}"]}" ${files[*]}
 	sudo sed -i "/^${package//\//\\\/}$/ s/^/#/" ${files[*]}
 done
 
@@ -163,7 +169,7 @@ done
 # Remove useless backup files
 for file in ${files[*]}; do
 	if [ -f "${file}.bak" ]; then
-		[ -n "$( diff ${file} ${file}.bak )" ] || sudo rm "${file}.bak"
+		[ -n "$( diff "${file}" "${file}.bak" )" ] || sudo rm "${file}.bak"
 	fi
 done
 
